@@ -4,7 +4,7 @@
 @Version ：1.0
 @Date ：2026-06-14
 @Description：
-deep learning 线性代数
+deep learning 线性代数（d2l.ai 2.3 节）
 '''
 import torch
 
@@ -261,9 +261,12 @@ A = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
 fro_torch = torch.norm(A, 'fro')
 fro_manual = torch.sqrt(torch.sum(A ** 2))
 
+res = torch.norm(A.flatten(), p=2)
+
 print(f"A:\n{A}")
 print(f"torch.norm(A, 'fro')        = {fro_torch:.4f}")
 print(f"sqrt(sum(A²)) 手工验证       = {fro_manual:.4f}")
+print(f"torch.norm(A.flatten(), p=2) = {res:.4f}  (拉平后L2)")
 print("就是把矩阵拉平成一个向量，再算 L2。")
 
 # 10e. 各范数对比
@@ -329,7 +332,7 @@ print("len(X) 始终返回 axis=0 的长度（第一个维度）。")
 print(f"\n--- 练习5: A / A.sum(axis=1) 的广播 ---")
 A = torch.arange(20, dtype=torch.float32).reshape(5, 4)
 try:
-    result = A / A.sum(axis=1)
+    result = A / A.sum(axis=1) # 这里会报错，因为 A.sum(axis=1) 的形状是 (5,) 而不是 (5,1)，无法直接广播到 (5,4) 可以增加 keepdim=True 来保持形状为 (5,1) 以正确广播。
     print("运行成功:")
     print(result)
     print("注意: (5,4) / (5,) → (5,) 广播成 (5,1) → (5,4), 结果每行被除的是它的行和。")
@@ -337,13 +340,53 @@ except RuntimeError as e:
     print(f"报错: {e}")
     print("因为 (5,4) 和 (5,) 广播时, 右对齐为 (5,4) 和 (1,5) → dim=1: 4 vs 5 不兼容!")
 
-# 练习6: 不同轴上的求和形状
+# 练习6: (2,3,4) 张量各轴求和输出形状
 print(f"\n--- 练习6: (2,3,4) 张量各轴求和形状 ---")
 X = torch.ones(2, 3, 4)
 print(f"原始形状: {X.shape}")
-print(f"sum(axis=0): {X.sum(axis=0).shape}  (压缩第0轴)")
-print(f"sum(axis=1): {X.sum(axis=1).shape}  (压缩第1轴)")
-print(f"sum(axis=2): {X.sum(axis=2).shape}  (压缩第2轴)")
+print(f"sum(axis=0): {X.sum(axis=0).shape}  (压缩第0轴, 长度 2 消失)")
+print(f"sum(axis=1): {X.sum(axis=1).shape}  (压缩第1轴, 长度 3 消失)")
+print(f"sum(axis=2): {X.sum(axis=2).shape}  (压缩第2轴, 长度 4 消失)")
+print("规律: sum(axis=k) 后, 第 k 轴的长度消失, 其余轴保持原长度。")
+
+# 练习7: linalg.norm 对 3D+ 张量计算什么？
+print(f"\n--- 练习7: torch.norm 对高维张量计算什么？ ---")
+
+# 先看 2D 矩阵: norm() 默认 = Frobenius 范数
+A = torch.tensor([[1., 2.], [3., 4.]])
+print(f"2D矩阵 A:\n{A}")
+print(f"torch.norm(A)           = {torch.norm(A):.4f}")
+print(f"torch.norm(A, 'fro')    = {torch.norm(A, 'fro'):.4f}")
+print(f"手工 sqrt(sum(A²))       = {torch.sqrt((A**2).sum()):.4f}")
+print("→ 对 2D 矩阵, torch.norm() 默认 = Frobenius范数")
+
+# 3D 张量: 所有元素拉平算 L2
+X = torch.arange(24, dtype=torch.float32).reshape(2, 3, 4)
+print(f"\n3D张量 X (2×3×4), 共 {X.numel()} 个元素")
+n = torch.norm(X)
+manual = torch.sqrt((X ** 2).sum())
+flat_l2 = torch.norm(X.flatten(), p=2)
+print(f"torch.norm(X)               = {n:.4f}")
+print(f"手工 sqrt(sum(全部24个X²))   = {manual:.4f}")
+print(f"X.flatten() 后的 L2          = {flat_l2:.4f}")
+print(f"三者相等? {torch.allclose(n, manual) and torch.allclose(n, flat_l2)}")
+
+# 扩展到更多任意形状验证
+print("\n--- 扩展到任意形状 ---")
+shapes = [(3, 5), (2, 3, 4), (2, 2, 2, 2), (3, 4, 5, 6)]
+for s in shapes:
+    T = torch.randn(s)
+    n = torch.norm(T)
+    m = torch.sqrt((T ** 2).sum())
+    print(f"  shape={str(s):<16}  norm={n:.4f}  等于sqrt(sum(T²))? {torch.allclose(n, m)}")
+
+print("\n结论: torch.norm(X) 对任意形状的张量,")
+print("  都是将所有元素视为一个长向量, 计算 L2 范数。")
+print("  公式: ||X|| = sqrt(Σ_{所有元素} X[i,j,k,...]²)")
+print("  等价于 X.flatten() 后的 L2 范数。")
+print("  这就是 Frobenius 范数向任意维度的自然推广。")
+
+
 
 print(f"\n===== 完成 =====")
 print("线性代数总结: 数据是张量, 变换是矩阵乘法, 目标是范数。")
